@@ -1,5 +1,5 @@
----@class DocsForLaravelOptions
----@field version # Version of the docs to view when running :DocsForLaravel <doc>
+---@class docsForLaravel.options
+---@field version string # Version of the docs to view when running :DocsForLaravel <doc>
 --- # Maybe use curl https://api.github.com/repos/laravel/docs/branches | jq '.[].name' ?
 ---| 'latest'
 ---| 'master'

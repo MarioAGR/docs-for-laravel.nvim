@@ -1,14 +1,16 @@
 local M = {}
 
--- TODO: Add warning or anything that this depends on a markdown viewer
--- TODO: Add requirement to have Nvim 0.10? idk
-
 -- List of available docs to download. The order is latest LTS, then master, then ...
 local opts = require('docs-for-laravel.options')
 local utils = require('docs-for-laravel.utils')
+local uv = vim.uv
 
----@param user_opts? DocsForLaravelOptions
+---@param user_opts? docsForLaravel.options
 M.setup = function(user_opts)
+    if vim.fn.has('nvim-0.10') == 0 then
+        error('docs-for-laravel requires Neovim 0.10 or higher')
+    end
+
     -- Merge default options and those provided by the user
     opts = vim.tbl_deep_extend('force', opts, user_opts or {})
 
@@ -16,7 +18,6 @@ M.setup = function(user_opts)
     opts.docs_path = string.gsub(opts.docs_path, '/$', '', 1)
 
     utils.scan_local_docs(opts)
-    utils.get_latest_version(opts)
 
     -- TODO:
     -- 1. Docs4LaravelDownload
@@ -32,7 +33,12 @@ M.setup = function(user_opts)
 
         local version_directory = utils.directory_for_saving(opts.docs_path, selected_version)
 
-        if not (vim.uv or vim.loop).fs_stat(version_directory) then
+        if command_opts.bang and uv.fs_stat(version_directory) then
+            utils.rm_dir(version_directory)
+            vim.notify('Removed')
+        end
+
+        if not uv.fs_stat(version_directory) then
             local laravel_docs_repo = 'https://github.com/laravel/docs.git'
             -- TODO: Maybe show progress in some way?
             local out = vim.fn.system({ 'git', 'clone', '--filter=blob:none', '--branch=' .. selected_version, laravel_docs_repo, version_directory })
@@ -45,7 +51,7 @@ M.setup = function(user_opts)
                 vim.fn.getchar()
                 os.exit(1)
             else
-                utils.local_docs[selected_version] = vim.fn.systemlist({ 'ls', '-1', version_directory })
+                utils.local_docs[selected_version] = utils.scan_directory(version_directory)
                 vim.notify('Downloaded the docs for version ' .. selected_version)
             end
         else
@@ -54,6 +60,7 @@ M.setup = function(user_opts)
     end, {
         desc = 'Download Laravel docs for configured version (latest by default), if given an argument then download that version.',
         nargs = '?',
+        bang = true,
         complete = function(ArgLead, CmdLine, CursorPos)
             local args_num = #vim.fn.split(CmdLine, ' ')
             local current_arg = vim.fn.split(CmdLine, ' ')[2]
@@ -83,8 +90,6 @@ M.setup = function(user_opts)
         if version_selected == doc_to_show then
             version_selected = utils.get_latest_version(opts)
         end
-
-        -- Shouldn't assume but I'll do it, so I'll skip it checking if the version exists
 
         if not vim.iter(vim.tbl_keys(utils.local_docs)):find(version_selected) then
             vim.notify(string.format("You haven't downloaded version %s.", version_selected), vim.log.levels.ERROR)
