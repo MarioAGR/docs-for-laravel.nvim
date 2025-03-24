@@ -1,40 +1,36 @@
 local M = {}
 
--- TODO: Add warning or anything that this depends on  a markdown viewer
+-- TODO: Add warning or anything that this depends on a markdown viewer
 -- TODO: Add requirement to have Nvim 0.10? idk
 
 -- List of available docs to download. The order is latest LTS, then master, then ...
-local plugin_opts = require('docs-for-laravel.options')
+local opts = require('docs-for-laravel.options')
 local utils = require('docs-for-laravel.utils')
 
 ---@param user_opts? DocsForLaravelOptions
 M.setup = function(user_opts)
     -- Merge default options and those provided by the user
-    plugin_opts = vim.tbl_deep_extend('force', plugin_opts, user_opts or {})
+    opts = vim.tbl_deep_extend('force', opts, user_opts or {})
 
     -- Remove trailing "/" if there's one
-    plugin_opts.docs_path = string.gsub(plugin_opts.docs_path, '/$', '', 1)
+    opts.docs_path = string.gsub(opts.docs_path, '/$', '', 1)
 
-    utils.scan_local_docs(plugin_opts)
+    utils.scan_local_docs(opts)
+    utils.get_latest_version(opts)
 
-    -- Create user commands
     -- TODO:
     -- 1. Docs4LaravelDownload
-    --   1.1 List (:command-complete) the available docs (git branches)
-    --   Maybe use https://api.github.com/repos/laravel/docs/branches ?
-    --   curl https://api.github.com/repos/laravel/docs/branches | jq '.[].name'
     -- 2. When using DocsForLaravel (D4L) list the available markdown files
-    --   2.1 First argument can be the version (list the downloaded versions (:command-complete))
 
     vim.api.nvim_create_user_command('DocsForLaravelDownload', function(command_opts)
-        local selected_version = command_opts.fargs[1] or utils.get_latest_version(plugin_opts)
+        local selected_version = command_opts.fargs[1] or utils.get_latest_version(opts)
 
         if not vim.tbl_contains(utils.available_docs, selected_version) then
-            vim.notify('The given version ' .. selected_version .. ' is not available for download, please select a valid one.', vim.log.levels.WARN)
+            vim.notify('The given version ' .. selected_version .. ' is not available or is invalid, please select a valid one.', vim.log.levels.WARN)
             return
         end
 
-        local version_directory = utils.directory_for_saving(plugin_opts.docs_path, selected_version)
+        local version_directory = utils.directory_for_saving(opts.docs_path, selected_version)
 
         if not (vim.uv or vim.loop).fs_stat(version_directory) then
             local laravel_docs_repo = 'https://github.com/laravel/docs.git'
@@ -50,25 +46,32 @@ M.setup = function(user_opts)
                 os.exit(1)
             else
                 utils.local_docs[selected_version] = vim.fn.systemlist({ 'ls', '-1', version_directory })
-                vim.notify('Downloaded the docs at:\n' .. version_directory, vim.log.levels.INFO)
+                vim.notify('Downloaded the docs for version ' .. selected_version)
             end
         else
-            vim.notify('The docs already exists at:\n' .. version_directory, vim.log.levels.INFO)
+            vim.notify('The docs already exists, to force a `git clone` call the command with a bang (!)', vim.log.levels.WARN)
         end
     end, {
         desc = 'Download Laravel docs for configured version (latest by default), if given an argument then download that version.',
         nargs = '?',
-        ---@see https://github.com/laravel/docs/branches/all
-        ---@see https://laravel.com/docs/12.x/releases#support-policy
         complete = function(ArgLead, CmdLine, CursorPos)
-            local results = vim.iter(utils.available_docs)
+            local args_num = #vim.fn.split(CmdLine, ' ')
+            local current_arg = vim.fn.split(CmdLine, ' ')[2]
+
+            local results_not_local = vim.iter(utils.available_docs)
                 :filter(function(v)
-                    -- Pass plain as true to ignore "magic" characters and do a "substring"
-                    vim.notify(string.format('v: %s\nfound: ', v, vim.iter(vim.tbl_keys(utils.local_docs)):find(v)))
-                    return vim.iter(vim.tbl_keys(utils.local_docs)):find(v) == nil
+                    return (vim.iter(vim.tbl_keys(utils.local_docs)):find(v) == nil)
+                end)
+                :filter(function(v)
+                    return (string.find(v, ArgLead, 1, true) ~= nil)
                 end)
                 :totable()
-            return results
+
+            if args_num == 1 or ArgLead == current_arg then
+                return results_not_local
+            end
+
+            return {}
         end,
     })
 
@@ -78,7 +81,7 @@ M.setup = function(user_opts)
         local doc_to_show = command_opts.fargs[2] or command_opts.fargs[1]
 
         if version_selected == doc_to_show then
-            version_selected = utils.get_latest_version(plugin_opts)
+            version_selected = utils.get_latest_version(opts)
         end
 
         -- Shouldn't assume but I'll do it, so I'll skip it checking if the version exists
@@ -96,7 +99,7 @@ M.setup = function(user_opts)
         vim.api.nvim_win_set_buf(win, new_buf)
         vim.api.nvim_buf_set_name(new_buf, doc_to_show)
 
-        local full_path = string.format('%s/version_%s/%s', plugin_opts.docs_path, version_selected, doc_to_show)
+        local full_path = string.format('%s/version_%s/%s', opts.docs_path, version_selected, doc_to_show)
         vim.api.nvim_buf_set_lines(new_buf, 0, -1, false, vim.fn.readfile(full_path))
 
         vim.api.nvim_set_option_value('modifiable', false, {
@@ -106,7 +109,7 @@ M.setup = function(user_opts)
         desc = 'Read Laravel docs in a buffer like :help',
         nargs = '+',
         complete = function(ArgLead, CmdLine, CursorPos)
-            local version = utils.get_latest_version(plugin_opts)
+            local version = utils.get_latest_version(opts)
             local results = {}
 
             local fargs = vim.fn.split(CmdLine, ' ')

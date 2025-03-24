@@ -1,6 +1,6 @@
 local M = {}
 
-M.available_docs = { '12.x', 'master', '11.x', '10.x', '9.x' }
+M.available_docs = { 'master', '12.x', '11.x', '10.x', '9.x' }
 
 M.local_docs = {}
 
@@ -14,14 +14,14 @@ M.scan_local_docs = function(opts)
     end
 end
 
--- TODO: Find a way to truly select the latest version
--- Maybe use the URL to fetch the versions (and cache it somehow)
---  then sort
---    then use the greatest number?
+-- NOTE: Find a way to truly select the latest version?
+-- Maybe use the URL to fetch the versions
+--  Cache it somehow
+--   Then `sort(..., 'n')[2]` to select whatever is latest release ignoring master
 M.get_latest_version = function(opts)
     local version = opts.version
     if version == 'latest' then
-        version = M.available_docs[1]
+        version = M.available_docs[2] -- Ignore master and select the next
     end
     return version
 end
@@ -32,7 +32,7 @@ M.directory_for_saving = function(path, version)
     end)
 
     if not exists_version then
-        vim.notify(string.format('Cannot construct directory to be used, the version %s does not exist.', version), vim.log.levels.ERROR)
+        vim.notify(string.format('Cannot format path to be used, the version %s does not exist.', version), vim.log.levels.ERROR)
     end
 
     return string.format('%s/version_%s/', path, version)
