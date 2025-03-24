@@ -6,7 +6,6 @@ local M = {}
 -- List of available docs to download. The order is latest LTS, then master, then ...
 local plugin_opts = require('docs-for-laravel.options')
 local utils = require('docs-for-laravel.utils')
-local scanned_docs = {}
 
 ---@param user_opts? DocsForLaravelOptions
 M.setup = function(user_opts)
@@ -16,19 +15,7 @@ M.setup = function(user_opts)
     -- Remove trailing "/" if there's one
     plugin_opts.docs_path = string.gsub(plugin_opts.docs_path, '/$', '', 1)
 
-    -- Scan existing docs directories
-    local doc_directories_availables = vim.fn.systemlist({ 'ls', plugin_opts.docs_path })
-    for count = 1, #doc_directories_availables do
-        local full_path = string.format('%s/%s', plugin_opts.docs_path, doc_directories_availables[count])
-        local version_wo_dir_prefix = doc_directories_availables[count]:gsub('version_', '')
-        local files_list = vim.fn.systemlist({ 'ls', '-1', full_path })
-        scanned_docs[version_wo_dir_prefix] = files_list
-    end
-
-    local scanned_docs_keys = {}
-    if #scanned_docs >= 1 then
-        scanned_docs_keys = vim.tbl_keys(scanned_docs)
-    end
+    utils.scan_local_docs(plugin_opts)
 
     -- Create user commands
     -- TODO:
@@ -40,12 +27,6 @@ M.setup = function(user_opts)
     --   2.1 First argument can be the version (list the downloaded versions (:command-complete))
 
     vim.api.nvim_create_user_command('DocsForLaravelDownload', function(command_opts)
-        -- NOTE: ¿Redundant due to nargs?
-        if #command_opts.fargs > 1 then
-            vim.notify('Please provide just one argument', vim.log.levels.ERROR)
-            return
-        end
-
         local selected_version = command_opts.fargs[1] or utils.get_latest_version(plugin_opts)
 
         if not vim.tbl_contains(utils.available_docs, selected_version) then
@@ -68,23 +49,23 @@ M.setup = function(user_opts)
                 vim.fn.getchar()
                 os.exit(1)
             else
-                scanned_docs[selected_version] = vim.fn.systemlist({ 'ls', '-1', version_directory })
-                table.insert(scanned_docs_keys, selected_version)
+                utils.local_docs[selected_version] = vim.fn.systemlist({ 'ls', '-1', version_directory })
                 vim.notify('Downloaded the docs at:\n' .. version_directory, vim.log.levels.INFO)
             end
         else
             vim.notify('The docs already exists at:\n' .. version_directory, vim.log.levels.INFO)
         end
     end, {
-        desc = 'Download Laravel docs, if given an argument then download that version',
+        desc = 'Download Laravel docs for configured version (latest by default), if given an argument then download that version.',
         nargs = '?',
         ---@see https://github.com/laravel/docs/branches/all
         ---@see https://laravel.com/docs/12.x/releases#support-policy
-        complete = function(ArgLead)
+        complete = function(ArgLead, CmdLine, CursorPos)
             local results = vim.iter(utils.available_docs)
                 :filter(function(v)
                     -- Pass plain as true to ignore "magic" characters and do a "substring"
-                    return (string.find(v, ArgLead, 1, true) ~= nil)
+                    vim.notify(string.format('v: %s\nfound: ', v, vim.iter(vim.tbl_keys(utils.local_docs)):find(v)))
+                    return vim.iter(vim.tbl_keys(utils.local_docs)):find(v) == nil
                 end)
                 :totable()
             return results
@@ -101,7 +82,7 @@ M.setup = function(user_opts)
         end
 
         -- Shouldn't assume but I'll do it, so I'll skip it checking if the version exists
-        local exists_version = vim.iter(vim.tbl_keys(scanned_docs)):any(function(v)
+        local exists_version = vim.iter(vim.tbl_keys(utils.local_docs)):any(function(v)
             return (string.find(v, version_selected, 1, true) ~= nil)
         end)
 
@@ -136,19 +117,19 @@ M.setup = function(user_opts)
 
             -- Show results for downloaded versions and the docs for the "latest" version
             if first_arg == nil then
-                results = vim.tbl_extend('keep', results, scanned_docs_keys, scanned_docs[version])
+                results = vim.tbl_extend('keep', results, vim.tbl_keys(utils.local_docs), utils.local_docs[version])
                 return results
             end
 
             -- If the first argument is a version, make sure it  exists
-            local exists_version = vim.iter(vim.tbl_keys(scanned_docs)):any(function(v)
+            local exists_version = vim.iter(vim.tbl_keys(utils.local_docs)):any(function(v)
                 return (string.find(v, first_arg or '', 1, true) ~= nil)
             end)
 
             -- If the first argument is looking for a version and it exists
             -- return current available downloaded versions
             if (ArgLead == first_arg) and exists_version then
-                local first_arg_versions = vim.iter(scanned_docs_keys)
+                local first_arg_versions = vim.iter(utils.local_docscanned_docs_keys)
                     :filter(function(v)
                         if first_arg then
                             return (string.find(v, first_arg, 1, true) ~= nil)
@@ -170,7 +151,7 @@ M.setup = function(user_opts)
             if #fargs <= 3 and (string.find(CmdLine, '%s$') ~= nil) then
                 -- If the first argument is satifesied then return available docs
                 -- which satisfies second argument
-                results = vim.iter(scanned_docs[first_arg])
+                results = vim.iter(utils.local_docs[first_arg])
                     :filter(function(v)
                         -- Pass plain as true to ignore "magic" characters and do a "substring"
                         return (string.find(v, second_arg or '', 1, true) ~= nil)
