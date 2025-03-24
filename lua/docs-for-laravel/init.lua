@@ -26,7 +26,7 @@ M.setup = function(user_opts)
         local selected_version = command_opts.fargs[1] or utils.get_latest_version(opts)
 
         if not vim.tbl_contains(utils.available_docs, selected_version) then
-            vim.notify('The given version ' .. selected_version .. ' is not available or is invalid, please select a valid one.', vim.log.levels.WARN)
+            vim.notify('The given version ' .. selected_version .. ' is not available or is invalid, please select a valid one.', vim.log.levels.ERROR)
             return
         end
 
@@ -85,11 +85,17 @@ M.setup = function(user_opts)
         end
 
         -- Shouldn't assume but I'll do it, so I'll skip it checking if the version exists
-        local exists_version = vim.iter(vim.tbl_keys(utils.local_docs)):any(function(v)
-            return (string.find(v, version_selected, 1, true) ~= nil)
-        end)
 
-        -- TODO: Check the doc_to_show exists
+        if not vim.iter(vim.tbl_keys(utils.local_docs)):find(version_selected) then
+            vim.notify(string.format("You haven't downloaded version %s.", version_selected), vim.log.levels.ERROR)
+            return
+        end
+
+        -- TODO: Check why if DocsForLaravelShow 11.x shows this message
+        if not vim.iter(utils.local_docs[version_selected]):find(doc_to_show) then
+            vim.notify(string.format('%s file does not exist, try selecting a diferent version or checking the name.', doc_to_show), vim.log.levels.ERROR)
+            return
+        end
 
         vim.cmd('split')
 
@@ -99,9 +105,11 @@ M.setup = function(user_opts)
         vim.api.nvim_win_set_buf(win, new_buf)
         vim.api.nvim_buf_set_name(new_buf, doc_to_show)
 
-        local full_path = string.format('%s/version_%s/%s', opts.docs_path, version_selected, doc_to_show)
+        local full_path = string.format('%s/version_%s/%s.md', opts.docs_path, version_selected, doc_to_show)
         vim.api.nvim_buf_set_lines(new_buf, 0, -1, false, vim.fn.readfile(full_path))
-
+        vim.api.nvim_set_option_value('ft', 'markdown', {
+            buf = new_buf,
+        })
         vim.api.nvim_set_option_value('modifiable', false, {
             buf = new_buf,
         })
@@ -129,10 +137,14 @@ M.setup = function(user_opts)
                 return (string.find(v, first_arg or '', 1, true) ~= nil)
             end)
 
+            if not exists_version then
+                return {}
+            end
+
             -- If the first argument is looking for a version and it exists
             -- return current available downloaded versions
             if (ArgLead == first_arg) and exists_version then
-                local first_arg_versions = vim.iter(utils.local_docscanned_docs_keys)
+                local first_arg_versions = vim.iter(utils.local_docs)
                     :filter(function(v)
                         if first_arg then
                             return (string.find(v, first_arg, 1, true) ~= nil)

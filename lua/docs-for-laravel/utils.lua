@@ -10,6 +10,12 @@ M.scan_local_docs = function(opts)
         local full_path = string.format('%s/%s', opts.docs_path, doc_directories_availables[count])
         local version_wo_dir_prefix = doc_directories_availables[count]:gsub('version_', '')
         local files_list = vim.fn.systemlist({ 'ls', '-1', full_path })
+        files_list = vim.iter(files_list)
+            :map(function(v)
+                local s = string.gsub(v, '%.md$', '')
+                return s
+            end)
+            :totable()
         M.local_docs[version_wo_dir_prefix] = files_list
     end
 end
