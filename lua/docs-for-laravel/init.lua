@@ -19,10 +19,6 @@ M.setup = function(user_opts)
 
     utils.scan_local_docs(opts)
 
-    -- TODO:
-    -- 1. Docs4LaravelDownload
-    -- 2. When using DocsForLaravel (D4L) list the available markdown files
-
     vim.api.nvim_create_user_command('DocsForLaravelDownload', function(command_opts)
         local selected_version = command_opts.fargs[1] or utils.get_latest_version(opts)
 
@@ -35,7 +31,6 @@ M.setup = function(user_opts)
 
         if command_opts.bang and uv.fs_stat(version_directory) then
             utils.rm_dir(version_directory)
-            vim.notify('Removed')
         end
 
         if not uv.fs_stat(version_directory) then
@@ -83,21 +78,19 @@ M.setup = function(user_opts)
     })
 
     vim.api.nvim_create_user_command('DocsForLaravelShow', function(command_opts)
-        -- TODO: Take in account :command-modifiers
-        local version_selected = command_opts.fargs[1]
+        local selected_version = command_opts.fargs[1]
         local doc_to_show = command_opts.fargs[2] or command_opts.fargs[1]
 
-        if version_selected == doc_to_show then
-            version_selected = utils.get_latest_version(opts)
+        if selected_version == doc_to_show then
+            selected_version = utils.get_latest_version(opts)
         end
 
-        if not vim.iter(vim.tbl_keys(utils.local_docs)):find(version_selected) then
-            vim.notify(string.format("You haven't downloaded version %s.", version_selected), vim.log.levels.ERROR)
+        if not vim.iter(vim.tbl_keys(utils.local_docs)):find(selected_version) then
+            vim.notify(string.format("You haven't downloaded version %s.", selected_version), vim.log.levels.ERROR)
             return
         end
 
-        -- TODO: Check why if DocsForLaravelShow 11.x shows this message
-        if not vim.iter(utils.local_docs[version_selected]):find(doc_to_show) then
+        if not vim.iter(utils.local_docs[selected_version]):find(doc_to_show) then
             vim.notify(string.format('%s file does not exist, try selecting a diferent version or checking the name.', doc_to_show), vim.log.levels.ERROR)
             return
         end
@@ -106,12 +99,11 @@ M.setup = function(user_opts)
 
         local new_buf = vim.api.nvim_create_buf(false, false)
         local win = vim.api.nvim_get_current_win()
-
         vim.api.nvim_win_set_buf(win, new_buf)
         vim.api.nvim_buf_set_name(new_buf, doc_to_show)
 
-        local full_path = string.format('%s/version_%s/%s.md', opts.docs_path, version_selected, doc_to_show)
-        vim.api.nvim_buf_set_lines(new_buf, 0, -1, false, vim.fn.readfile(full_path))
+        local full_path = string.format('%s/version_%s/%s.md', opts.docs_path, selected_version, doc_to_show)
+        vim.cmd('read ' .. full_path)
         vim.api.nvim_set_option_value('ft', 'markdown', {
             buf = new_buf,
         })
@@ -128,8 +120,8 @@ M.setup = function(user_opts)
             local fargs = vim.fn.split(CmdLine, ' ')
 
             -- 2 and 3 cause it includes the name of the command
-            local first_arg = vim.fn.split(CmdLine, ' ')[2] or nil
-            local second_arg = vim.fn.split(CmdLine, ' ')[3] or nil
+            local first_arg = fargs[2] or nil
+            local second_arg = fargs[3] or nil
 
             -- Show results for downloaded versions and the docs for the "latest" version
             if first_arg == nil then
@@ -137,14 +129,10 @@ M.setup = function(user_opts)
                 return results
             end
 
-            -- If the first argument is a version, make sure it  exists
+            -- Check if the first argument is a version and it exists
             local exists_version = vim.iter(vim.tbl_keys(utils.local_docs)):any(function(v)
                 return (string.find(v, first_arg or '', 1, true) ~= nil)
             end)
-
-            if not exists_version then
-                return {}
-            end
 
             -- If the first argument is looking for a version and it exists
             -- return current available downloaded versions
@@ -165,15 +153,14 @@ M.setup = function(user_opts)
             end
 
             -- If there are more arguments ignore them and dont "show" anything
-            -- NOTE: When doing <DocsForLaravelShow 12.x db > it shows
-            -- mongodb.md, I want to progress and don't be stuck
-            -- here so I'll leave it like that .-.
-            if #fargs <= 3 and (string.find(CmdLine, '%s$') ~= nil) then
+            -- NOTE: When doing <DocsForLaravelShow 12.x db > shows mongodb.md,
+            -- I want to progress and don't be stuck here so...
+            -- I'll leave it like that .-.
+            if #fargs <= 3 and (string.find(CmdLine, '%s$') ~= nil) and exists_version then
                 -- If the first argument is satifesied then return available docs
                 -- which satisfies second argument
                 results = vim.iter(utils.local_docs[first_arg])
                     :filter(function(v)
-                        -- Pass plain as true to ignore "magic" characters and do a "substring"
                         return (string.find(v, second_arg or '', 1, true) ~= nil)
                     end)
                     :totable()

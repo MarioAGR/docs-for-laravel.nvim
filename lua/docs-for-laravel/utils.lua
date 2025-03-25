@@ -16,8 +16,9 @@ M.scan_directory = function(path)
     ---@diagnostic disable-next-line: param-type-mismatch
     local name, type = uv.fs_scandir_next(dir)
     while name do
-        -- NOTE: Maybe filter by type?
-        table.insert(entries, name)
+        if name ~= '.git' then
+            table.insert(entries, name)
+        end
         ---@diagnostic disable-next-line: param-type-mismatch
         name, type = uv.fs_scandir_next(dir)
     end
@@ -26,7 +27,6 @@ M.scan_directory = function(path)
 end
 
 M.rm_dir = function(dir_path)
-    -- NOTE: Is it asynchronous? If not, make it
     local function delete_content(path)
         local dir = uv.fs_scandir(path)
 
