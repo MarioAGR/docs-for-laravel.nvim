@@ -1,5 +1,8 @@
 # Like `:help` but for Laravel docs
 
+Is it better than consulting them via web browser?
+Maybe not, but was fun learning and doing it.
+
 ## Requirements:
 1. Neovim >= 0.10.0 (recommended)
 1. git (used to clone [laravel/docs](https://github.com/laravel/docs))
@@ -47,3 +50,7 @@ To view the documentation you can use the following command
 - The first argument can be a version (`9.x`) followed by the name of the documentation to open (`blade.md`)
 
 `DocsForLaravelShow (version|file) (file?)`
+
+## TODOs?
+
+- Use GitHub API, list branches, cache then use that as a valid list of versions available.
