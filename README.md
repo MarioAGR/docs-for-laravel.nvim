@@ -1,7 +1,11 @@
-# Like `:help` but for Laravel docs
+# Almost like `:help` but for Laravel docs
 
-Is it better than consulting them via web browser?
-Maybe not, but was fun learning and doing it.
+- Why _almost_ like `:help` ?
+  Cause if you have configured sessions in nvim, when a file of yours is in a window and the docs in another, you may
+  think that if you close nvim the docs window would conserve, but no :(.
+
+- Is it better than consulting them via web browser?
+  Maybe not, but was fun learning and doing it.
 
 ## Requirements:
 1. Neovim >= 0.10.0 (recommended)
@@ -41,6 +45,7 @@ Maybe not, but was fun learning and doing it.
 To download (git clone --depth=1) just use the following command
 - You can use the bang (!) to delete the current downloaded version and git clone it again.
   > I don't want to think about dealing with fetching or pulling each directory.
+
 - If no version specified it will use the one configured in options.
   You can specify a version like `master`, `12.x`, `5.8`, etc.
 
